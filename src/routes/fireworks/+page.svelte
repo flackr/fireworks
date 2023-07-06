@@ -9,6 +9,7 @@
     play_action,
     validColors,
     type FireworksState,
+    getHandForPlayer,
   } from "$lib/components/fireworks";
   import { store } from "$lib/store";
   import { onDestroy, onMount } from "svelte";
@@ -48,12 +49,12 @@
     }
     if (action.type === "discard_action") {
       return `${displayName(payload.player)} discarded ${
-        state.hands[payload.player].cards[payload.index]
+        getHandForPlayer(state, payload.player)[payload.index].name
       }`;
     }
     if (action.type === "play_action") {
       return `${displayName(payload.player)} played ${
-        state.hands[payload.player].cards[payload.index]
+        getHandForPlayer(state, payload.player)[payload.index].name
       }`;
     }
     if (action.type === "clue_color_action") {
@@ -199,7 +200,7 @@
       {/each}
     </span>
   </span>
-  {#if joined && displayState?.players.length > 1 && displayState?.players.length < 6 && displayState?.hands.length === 0}
+  {#if joined && displayState?.players.length > 1 && displayState?.players.length < 6 && displayState?.state === 'notstarted'}
     <button on:click={start}>Start Game</button>
   {/if}
   {#each displayState?.players as p, pi}
@@ -208,14 +209,15 @@
         *
       {/if}
       {p.name}
-      {#if displayState?.hands[pi]}{#each displayState?.hands[pi].cards as c, ci}
-          {@const hand = displayState?.hands[pi]}
+      {#if displayState?.state !== 'notstarted'}
+        {@const cardInfo = getHandForPlayer(displayState, pi)}
+        {#each cardInfo as card, ci}
           <span class="cardblock">
             <span on:click={play(pi, ci)}>
               <Card
-                card={c}
-                cluedColor={hand.cluedColor[ci]}
-                cluedNumber={hand.cluedNumber[ci]}
+                card={card.name}
+                cluedColor={card.cluedColor}
+                cluedNumber={card.cluedNumber}
                 faceup={p.userid !== userId}
                 chop={displayState?.hgroup.chop[pi] === ci}
                 focus={displayState?.hgroup.focus[pi] === ci}
