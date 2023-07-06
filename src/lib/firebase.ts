@@ -31,5 +31,6 @@ export const firebase = {
 	},
 };
 
-// TODO: don't do this in production
-connectFirestoreEmulator(firebase.firestore, 'localhost', 8888);
+if (!import.meta.env.PROD) {
+	connectFirestoreEmulator(firebase.firestore, 'localhost', 8888);
+}
