@@ -1,8 +1,9 @@
-import * as toolkitRaw from '@reduxjs/toolkit';
+import * as toolkitRaw from "@reduxjs/toolkit";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const { configureStore } = ((toolkitRaw as any).default ?? toolkitRaw) as typeof toolkitRaw;
-import type { Writable } from 'svelte/store';
-import { fireworks } from '$lib/components/fireworks';
+const { configureStore } = ((toolkitRaw as any).default ??
+	toolkitRaw) as typeof toolkitRaw;
+import type { Writable } from "svelte/store";
+import { fireworks } from "$lib/components/fireworks";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function svelteStoreEnhancer(createStoreApi: (arg0: any, arg1: any) => any) {
@@ -18,13 +19,13 @@ function svelteStoreEnhancer(createStoreApi: (arg0: any, arg1: any) => any) {
 				return reduxStore.subscribe(() => {
 					fn(reduxStore.getState());
 				});
-			}
+			},
 		};
 	};
 }
 
 const reducer = {
-	fireworks
+	fireworks,
 };
 const rawStore = configureStore({ reducer, enhancers: [svelteStoreEnhancer] });
 export type ReduxStore = typeof rawStore;

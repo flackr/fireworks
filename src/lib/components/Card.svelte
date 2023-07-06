@@ -1,12 +1,14 @@
 <script lang="ts">
     export let card = "";
     export let faceup = false;
+    export let chop = false;
+    export let focus = false;
     export let cluedColor: string | undefined = undefined;
     export let cluedNumber: number | undefined = undefined;
 </script>
 
 
-<div class:faceup={faceup} class="card color-{card[0]} value-{card[1]}">
+<div class:faceup class:chop class:focus class="card color-{card[0]} value-{card[1]}">
     <div class=transform>
         <div class=front></div>
         <div class=value>{card[1]}</div>
@@ -24,6 +26,13 @@
         height: 100px;
         position: relative;
         margin: 2px;
+        border-bottom: 5px solid transparent;
+    }
+    .chop {
+        outline: 2px solid red;
+    }
+    .focus {
+        border-bottom: 5px solid gray;
     }
 
     .transform {

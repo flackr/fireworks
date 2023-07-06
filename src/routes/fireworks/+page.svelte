@@ -217,6 +217,8 @@
                 cluedColor={hand.cluedColor[ci]}
                 cluedNumber={hand.cluedNumber[ci]}
                 faceup={p.userid !== userId}
+                chop={displayState?.hgroup.chop[pi] === ci}
+                focus={displayState?.hgroup.focus[pi] === ci}
               />
             </span><br />
             {#if pi === playerIndex && myTurn(displayState) && displayState?.clues < 8}
