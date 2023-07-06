@@ -212,6 +212,7 @@
       {#if displayState?.state !== 'notstarted'}
         {@const cardInfo = getHandForPlayer(displayState, pi)}
         {#each cardInfo as card, ci}
+          {@const cardId = displayState?.hand[pi].cards[ci]}
           <span class="cardblock">
             <span on:click={play(pi, ci)}>
               <Card
@@ -220,7 +221,8 @@
                 cluedNumber={card.cluedNumber}
                 faceup={p.userid !== userId}
                 chop={displayState?.hgroup.chop[pi] === ci}
-                focus={displayState?.hgroup.focus[pi] === ci}
+                focus={displayState?.hgroup.focus[pi] === cardId}
+                debug={displayState?.hgroup.inference[pi].cards[cardId].possible.join(",")}
               />
             </span><br />
             {#if pi === playerIndex && myTurn(displayState) && displayState?.clues < 8}

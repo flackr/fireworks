@@ -3,6 +3,7 @@
     export let faceup = false;
     export let chop = false;
     export let focus = false;
+    export let debug = "";
     export let cluedColor: string | undefined = undefined;
     export let cluedNumber: number | undefined = undefined;
 </script>
@@ -16,6 +17,9 @@
     </div>
     {#if cluedColor || cluedNumber}
         <div class="clue clue-{cluedColor || "unknown"}">{cluedNumber || ""}</div>
+    {/if}
+    {#if debug}
+        <div>{debug}</div>
     {/if}
 </div>
 
@@ -102,11 +106,8 @@
         transform: rotateY(180deg);
     }
 
-    .card div {
-        position: absolute;
-    }
-
     .clue {
+        position: absolute;
         width: 20%;
         height: 20%;
         border-radius: 5px;
