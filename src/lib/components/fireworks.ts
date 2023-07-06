@@ -179,7 +179,7 @@ export const hgroup = createReducer(initialState, (r) => {
 	function focus(state: WritableDraft<FireworksState>, action: AnyAction) {
 		const player = action.payload.player;
 		if (action.payload.index !== undefined) {
-		const index = action.payload.index;
+			const index = action.payload.index;
 			const previousFocus = state.hgroup.focus[player];
 			// Discard or play
 			if (previousFocus === undefined) {
