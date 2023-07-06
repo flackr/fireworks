@@ -183,6 +183,8 @@
   }
 </script>
 
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+<!-- svelte-ignore a11y-no-static-element-interactions -->
 {#if tableId}
   {#if !joined}
     <input type="text" bind:value={name} />
@@ -209,8 +211,6 @@
       {#if displayState?.hands[pi]}{#each displayState?.hands[pi].cards as c, ci}
           {@const hand = displayState?.hands[pi]}
           <span class="cardblock">
-            <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <!-- svelte-ignore a11y-no-static-element-interactions -->
             <span on:click={play(pi, ci)}>
               <Card
                 card={c}

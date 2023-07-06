@@ -23,6 +23,7 @@
 	"type": "module",
 	"dependencies": {
 		"@reduxjs/toolkit": "^1.9.5",
+		"@sveltejs/adapter-static": "^2.0.2",
 		"firebase": "^9.23.0"
 	}
 }
