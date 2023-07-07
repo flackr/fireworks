@@ -10,6 +10,7 @@
     validColors,
     type FireworksState,
     getHandForPlayer,
+    type Player,
   } from "$lib/components/fireworks";
   import { store } from "$lib/store";
   import { onDestroy, onMount } from "svelte";
@@ -182,6 +183,9 @@
       displayState?.turn === playerIndex && displayState === $store.fireworks
     );
   }
+  function shouldBeFaceUp(player: Player) {
+    return player.userid !== userId || $store.fireworks.state !== 'playing';
+  }
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -213,16 +217,17 @@
         {@const cardInfo = getHandForPlayer(displayState, pi)}
         {#each cardInfo as card, ci}
           {@const cardId = displayState?.hand[pi].cards[ci]}
+          {@const possible = displayState?.hgroup.inference[pi].cards[cardId].possible}
           <span class="cardblock">
             <span on:click={play(pi, ci)}>
               <Card
                 card={card.name}
                 cluedColor={card.cluedColor}
                 cluedNumber={card.cluedNumber}
-                faceup={p.userid !== userId}
+                faceup={shouldBeFaceUp(p)}
                 chop={displayState?.hgroup.chop[pi] === ci}
                 focus={displayState?.hgroup.focus[pi] === cardId}
-                debug={displayState?.hgroup.inference[pi].cards[cardId].possible.join(",")}
+                debug={possible.length <= 6 ? possible.join(" ") : `(${possible.length})`}
               />
             </span><br />
             {#if pi === playerIndex && myTurn(displayState) && displayState?.clues < 8}
