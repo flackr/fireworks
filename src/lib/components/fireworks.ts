@@ -407,7 +407,11 @@ export const hgroup = createReducer(initialState, (r) => {
 			possible.push(`${cardInfo.cluedColor}${cardInfo.cluedNumber}`);
 		} else if (cardInfo.cluedColor !== undefined) {
 			if (save) {
-				for (let value = state.piles[cardInfo.cluedColor].length; value <= 5; ++value) {
+				for (
+					let value = state.piles[cardInfo.cluedColor].length;
+					value <= 5;
+					++value
+				) {
 					const name = `${cardInfo.cluedColor}${value}`;
 					if (inPlayCounts[name] === 1) {
 						possible.push(name);
@@ -454,7 +458,10 @@ export const hgroup = createReducer(initialState, (r) => {
 			if (save) {
 				for (let color in state.piles) {
 					const name = `${color}${cardInfo.cluedNumber}`;
-					if ((cardInfo.cluedNumber === 2 || inPlayCounts[name] === 1) && state.piles[color].length < cardInfo.cluedNumber) {
+					if (
+						(cardInfo.cluedNumber === 2 || inPlayCounts[name] === 1) &&
+						state.piles[color].length < cardInfo.cluedNumber
+					) {
 						possible.push(name);
 					}
 				}

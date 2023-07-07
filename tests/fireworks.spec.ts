@@ -16,14 +16,13 @@ import {
 
 // Sets up a known state with the top card on each pile as passed in, and each hand with
 // the given cards in hand, the given deck remaining and starting on the given turn.
-function setupState(
-	setup: {
-		piles: string[],
-		hands: string[][],
-		deck: string[],
-		turn: number,
-	}): FireworksState {
-	let {piles, hands, deck, turn} = setup;
+function setupState(setup: {
+	piles: string[];
+	hands: string[][];
+	deck: string[];
+	turn: number;
+}): FireworksState {
+	let { piles, hands, deck, turn } = setup;
 	hands = JSON.parse(JSON.stringify(hands));
 	const handLength = hands[0].length;
 	let state = { ...initialState };
@@ -54,7 +53,8 @@ function setupState(
 	}
 	let initialDeck: string[] = [];
 	let initialHands: string[][] = hands.map((x) => []);
-	let initialTurn = (((turn - plays) % hands.length) + hands.length) % hands.length;
+	let initialTurn =
+		(((turn - plays) % hands.length) + hands.length) % hands.length;
 	let t = initialTurn;
 	expect(t).to.be.lessThan(hands.length);
 	// Set up the play cards to be available to be played first.
@@ -367,7 +367,7 @@ describe("fireworks", () => {
 		];
 		const turn = 0;
 		const deck = ["W5", "Y1"];
-		let state = setupState({piles, hands, deck, turn});
+		let state = setupState({ piles, hands, deck, turn });
 		for (let pile of piles) {
 			const topCard = state.piles[pile[0]][state.piles[pile[0]].length - 1];
 			expect(topCard.substring(0, 2)).to.equal(pile);
@@ -384,31 +384,39 @@ describe("fireworks", () => {
 			hands: [
 				["Y1", "Y2", "B4", "Y4", "G4-discard"],
 				["Y1", "Y2", "Y3", "Y4", "Y5"],
-				["R1", "W4", "W3", "R1", "G4-protect"]
+				["R1", "W4", "W3", "R1", "G4-protect"],
 			],
 			deck: ["B2", "B4"],
-			turn: 0
+			turn: 0,
 		});
 		expect(state.turn).to.equal(0);
-		state = {...state, clues: 4};
+		state = { ...state, clues: 4 };
 		// Discard G4
-		state = fireworks(state, discard_action({
-			player: 0,
-			index: 4
-		}));
-        expect(state.discard.length).to.equal(1);
-        expect(state.discard[0]).to.equal("G4-discard");
+		state = fireworks(
+			state,
+			discard_action({
+				player: 0,
+				index: 4,
+			}),
+		);
+		expect(state.discard.length).to.equal(1);
+		expect(state.discard[0]).to.equal("G4-discard");
 		// Protect clue
-		state = fireworks(state, clue_number_action({
-			cluegiver: 1,
-			player: 2,
-			value: 4
-		}));
+		state = fireworks(
+			state,
+			clue_number_action({
+				cluegiver: 1,
+				player: 2,
+				value: 4,
+			}),
+		);
 		// Player 2 should assume this could be a protected G4.
 		expect(state.hgroup.focus[2]).to.equal("G4-protect");
 		const inferred = state.hgroup.inference[2].cards["G4-protect"];
 		expect(inferred.save).to.equal(true);
-		expect(JSON.stringify(inferred.possible.slice().sort())).to.equal(JSON.stringify(["G4", "W4"].sort()));
+		expect(JSON.stringify(inferred.possible.slice().sort())).to.equal(
+			JSON.stringify(["G4", "W4"].sort()),
+		);
 	});
 	it("Tracks possibilities for saves or plays on chop focus color clues", () => {
 		let state = setupState({
@@ -416,31 +424,39 @@ describe("fireworks", () => {
 			hands: [
 				["Y1", "Y2", "Y3", "Y4", "G4-discard"],
 				["Y1", "Y2", "Y3", "Y4", "Y5"],
-				["R1", "W4", "W3", "R1", "G4-protect"]
+				["R1", "W4", "W3", "R1", "G4-protect"],
 			],
 			deck: ["B2", "G1"],
-			turn: 0
+			turn: 0,
 		});
 		expect(state.turn).to.equal(0);
-		state = {...state, clues: 4};
+		state = { ...state, clues: 4 };
 		// Discard G4
-		state = fireworks(state, discard_action({
-			player: 0,
-			index: 4
-		}));
-        expect(state.discard.length).to.equal(1);
-        expect(state.discard[0]).to.equal("G4-discard");
+		state = fireworks(
+			state,
+			discard_action({
+				player: 0,
+				index: 4,
+			}),
+		);
+		expect(state.discard.length).to.equal(1);
+		expect(state.discard[0]).to.equal("G4-discard");
 		// Protect clue
-		state = fireworks(state, clue_color_action({
-			cluegiver: 1,
-			player: 2,
-			color: "G"
-		}));
+		state = fireworks(
+			state,
+			clue_color_action({
+				cluegiver: 1,
+				player: 2,
+				color: "G",
+			}),
+		);
 		// Player 2 should assume this could be a protected G4.
 		expect(state.hgroup.focus[2]).to.equal("G4-protect");
 		const inferred = state.hgroup.inference[2].cards["G4-protect"];
 		expect(inferred.save).to.equal(true);
-		expect(JSON.stringify(inferred.possible.slice().sort())).to.equal(JSON.stringify(["G4", "G1"].sort()));
+		expect(JSON.stringify(inferred.possible.slice().sort())).to.equal(
+			JSON.stringify(["G4", "G1"].sort()),
+		);
 	});
 	it("Only considers save possibilities for needed cards", () => {
 		let state = setupState({
@@ -448,54 +464,66 @@ describe("fireworks", () => {
 			hands: [
 				["Y1", "Y2", "Y3", "Y4", "G4-discard"],
 				["Y1", "Y2", "Y3", "Y4", "Y5"],
-				["R1", "W4", "W3", "R1", "G4-protect"]
+				["R1", "W4", "W3", "R1", "G4-protect"],
 			],
 			deck: ["B2"],
-			turn: 0
+			turn: 0,
 		});
 		expect(state.turn).to.equal(0);
-		state = {...state, clues: 4};
+		state = { ...state, clues: 4 };
 		// Discard G4
-		state = fireworks(state, discard_action({
-			player: 0,
-			index: 4
-		}));
-        expect(state.discard.length).to.equal(1);
-        expect(state.discard[0]).to.equal("G4-discard");
+		state = fireworks(
+			state,
+			discard_action({
+				player: 0,
+				index: 4,
+			}),
+		);
+		expect(state.discard.length).to.equal(1);
+		expect(state.discard[0]).to.equal("G4-discard");
 		// Protect clue
-		state = fireworks(state, clue_number_action({
-			cluegiver: 1,
-			player: 2,
-			value: 4
-		}));
+		state = fireworks(
+			state,
+			clue_number_action({
+				cluegiver: 1,
+				player: 2,
+				value: 4,
+			}),
+		);
 		// Player 2 should assume this could be a protected G4.
 		expect(state.hgroup.focus[2]).to.equal("G4-protect");
 		const inferred = state.hgroup.inference[2].cards["G4-protect"];
 		expect(inferred.save).to.equal(true);
-		expect(JSON.stringify(inferred.possible.slice().sort())).to.equal(JSON.stringify(["W4"].sort()));
+		expect(JSON.stringify(inferred.possible.slice().sort())).to.equal(
+			JSON.stringify(["W4"].sort()),
+		);
 	});
 	it("Tracks possibilities for saves or plays on chop focus 2 clues", () => {
 		let state = setupState({
 			piles: ["G2", "Y1"],
 			hands: [
 				["Y1", "Y2", "Y3", "Y4", "Y5"],
-				["R1", "W4", "W3", "R1", "B2-protect"]
+				["R1", "W4", "W3", "R1", "B2-protect"],
 			],
 			deck: ["B2", "B4", "Y2", "R2", "R2", "W2", "W2"],
-			turn: 0
+			turn: 0,
 		});
 		expect(state.turn).to.equal(0);
 		// Protect clue
-		state = fireworks(state, clue_number_action({
-			cluegiver: 0,
-			player: 1,
-			value: 2
-		}));
+		state = fireworks(
+			state,
+			clue_number_action({
+				cluegiver: 0,
+				player: 1,
+				value: 2,
+			}),
+		);
 		// Player 2 should assume this could be saving a 2 for later.
 		expect(state.hgroup.focus[1]).to.equal("B2-protect");
 		const inferred = state.hgroup.inference[1].cards["B2-protect"];
 		expect(inferred.save).to.equal(true);
-		expect(JSON.stringify(inferred.possible.slice().sort())).to.equal(JSON.stringify(["B2", "R2", "W2", "Y2"].sort()));
+		expect(JSON.stringify(inferred.possible.slice().sort())).to.equal(
+			JSON.stringify(["B2", "R2", "W2", "Y2"].sort()),
+		);
 	});
 });
-
