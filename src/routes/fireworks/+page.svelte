@@ -11,6 +11,7 @@
     type FireworksState,
     getHandForPlayer,
     type Player,
+    type CardId,
   } from "$lib/components/fireworks";
   import { store } from "$lib/store";
   import { onDestroy, onMount } from "svelte";
@@ -22,10 +23,13 @@
     onSnapshot,
     query,
   } from "firebase/firestore";
+  import { crossfade } from "svelte/transition";
+  import { flip } from "svelte/animate";
   import { firebase } from "$lib/firebase";
   import { goto } from "$app/navigation";
   import type { AnyAction } from "@reduxjs/toolkit";
   import Card from "$lib/components/Card.svelte";
+  import { quintOut } from "svelte/easing";
 
   let date = { d: new Date(), e: 3 };
   let tableId = $page.url.searchParams.get("table");
@@ -33,6 +37,24 @@
 
   let gamelog: AnyAction[] = [];
   let gamestates: FireworksState[] = [];
+
+  const [send, receive] = crossfade({
+    duration: (d) => 600,
+
+    fallback(node, params) {
+      const style = getComputedStyle(node);
+      const transform = style.transform === "none" ? "" : style.transform;
+
+      return {
+        duration: 600,
+        easing: quintOut,
+        css: (t) => `
+					transform: ${transform} scale(${t});
+					opacity: ${t}
+				`,
+      };
+    },
+  });
 
   $: displayState = $store.fireworks;
   function displayName(index: number) {
@@ -184,7 +206,18 @@
     );
   }
   function shouldBeFaceUp(player: Player) {
-    return player.userid !== userId || $store.fireworks.state !== 'playing';
+    return player.userid !== userId || $store.fireworks.state !== "playing";
+  }
+  function piles(state: FireworksState): CardId[] {
+    let topCards: CardId[] = [];
+    for (const color in state.piles) {
+      const pile = state.piles[color];
+      if (pile.length > 0) {
+        topCards.push(pile[pile.length - 1]);
+      }
+    }
+    console.log(topCards);
+    return topCards;
   }
 </script>
 
@@ -204,7 +237,7 @@
       {/each}
     </span>
   </span>
-  {#if joined && displayState?.players.length > 1 && displayState?.players.length < 6 && displayState?.state === 'notstarted'}
+  {#if joined && displayState?.players.length > 1 && displayState?.players.length < 6 && displayState?.state === "notstarted"}
     <button on:click={start}>Start Game</button>
   {/if}
   {#each displayState?.players as p, pi}
@@ -213,12 +246,17 @@
         *
       {/if}
       {p.name}
-      {#if displayState?.state !== 'notstarted'}
+      {#if displayState?.state !== "notstarted"}
         {@const cardInfo = getHandForPlayer(displayState, pi)}
-        {#each cardInfo as card, ci}
-          {@const cardId = displayState?.hand[pi].cards[ci]}
-          {@const possible = displayState?.hgroup.inference[pi].cards[cardId].possible}
-          <span class="cardblock">
+        {#each cardInfo as card, ci (card.id)}
+          {@const possible =
+            displayState?.hgroup.inference[pi].cards[card.id].possible}
+          <span
+            class="cardblock"
+            in:receive={{ key: card.id }}
+            out:send={{ key: card.id }}
+            animate:flip
+          >
             <span on:click={play(pi, ci)}>
               <Card
                 card={card.name}
@@ -226,8 +264,10 @@
                 cluedNumber={card.cluedNumber}
                 faceup={shouldBeFaceUp(p)}
                 chop={displayState?.hgroup.chop[pi] === ci}
-                focus={displayState?.hgroup.focus[pi] === cardId}
-                debug={possible.length <= 6 ? possible.join(" ") : `(${possible.length})`}
+                focus={displayState?.hgroup.focus[pi] === card.id}
+                debug={possible.length <= 6
+                  ? possible.join(" ")
+                  : `(${possible.length})`}
               />
             </span><br />
             {#if pi === playerIndex && myTurn(displayState) && displayState?.clues < 8}
@@ -252,6 +292,19 @@
     </p>
   {/each}
   <div>
+    Deck: {displayState?.deck.length}
+    {#each displayState?.deck.slice(0, 1) as cardId (cardId)}
+      <span
+        class="cardblock"
+        in:receive={{ key: cardId }}
+        out:send={{ key: cardId }}
+        animate:flip
+      >
+        <Card card={cardId} faceup={false} />
+      </span>
+    {/each}
+  </div>
+  <div>
     <p>State: {displayState?.state}</p>
     <p>
       Score: {Object.values(displayState?.piles).reduce(
@@ -259,23 +312,32 @@
         0
       )}
     </p>
-    <p>Deck: {displayState?.deck.length}</p>
     <p>Clues: {displayState?.clues}</p>
     <p>Faults: {displayState?.faults}</p>
   </div>
   <div>
     Play Area:
-    {#each Object.keys(displayState?.piles).sort() as color}
-      {@const index = displayState?.piles[color].length - 1}
-      {#if index >= 0}
-        <Card card={displayState?.piles[color][index]} faceup={true} />
-      {/if}
+    {#each piles(displayState) as cardId (cardId)}
+      <span
+        class="cardblock"
+        in:receive={{ key: cardId }}
+        out:send={{ key: cardId }}
+        animate:flip
+      >
+        <Card card={cardId} faceup={true} />
+      </span>
     {/each}
   </div>
   <div>
-    Discard Pile: {#each Object.entries(displayState?.discard.slice()).sort( (a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) ) as d}
-      <span class="cardblock">
-        <Card card={d[1]} faceup={true} />
+    Discard Pile: {#each Object.entries(displayState?.discard.slice()).sort( (a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0) ) as d (d[1])}
+      {@const cardId = d[1]}
+      <span
+        class="cardblock"
+        in:receive={{ key: cardId }}
+        out:send={{ key: cardId }}
+        animate:flip
+      >
+        <Card card={cardId} faceup={true} />
         {#if parseInt(d[0]) === displayState?.discard.length - 1}
           <br />*
         {/if}
