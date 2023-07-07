@@ -202,6 +202,10 @@ function cluedCards(state: WritableDraft<FireworksState>, action: AnyAction) {
 	return ret;
 }
 
+function allCardNames(state: FireworksState): string[] {
+	return Object.values(state.cardToCardInfo).map((cardInfo) => cardInfo.name);
+}
+
 export const hgroup = createReducer(initialState, (r) => {
 	function chop(state: WritableDraft<FireworksState>, action: AnyAction) {
 		const player = action.payload.player;
@@ -252,20 +256,92 @@ export const hgroup = createReducer(initialState, (r) => {
 		}
 	}
 	function infer(state: WritableDraft<FireworksState>, action: AnyAction) {
-		const player = action.payload.player;
+		let counts: { [k: string]: number } = {};
+		for (
+			let playerIndex = 0;
+			playerIndex < state.players.length;
+			playerIndex++
+		) {
+			let perPlayerCounts: { [k: string]: number } = {};
+			for (let card of allCardNames(state)) {
+				perPlayerCounts[card] = (perPlayerCounts[card] || 0) + 1;
+			}
+			for (let color in state.piles) {
+				for (let cardId of state.piles[color]) {
+					perPlayerCounts[state.cardToCardInfo[cardId].name]--;
+				}
+			}
+			for (let cardId of state.discard) {
+				perPlayerCounts[state.cardToCardInfo[cardId].name]--;
+			}
+			for (let i = 0; i < state.players.length; i++) {
+				const hand = getHandForPlayer(state, i);
+				for (let card of hand) {
+					if (i === playerIndex) {
+						const inferred = state.hgroup.inference[playerIndex].cards[card.id];
+						if (inferred.possible.length == 1) {
+							perPlayerCounts[inferred.possible[0]]--;
+						}
+					} else {
+						perPlayerCounts[card.name]--;
+					}
+				}
+			}
+			if (playerIndex === action.payload.player) {
+				counts = perPlayerCounts;
+			}
+			for (let card of state.hand[playerIndex].cards) {
+				// update possible list for each card
+				const cardInfo = state.cardToCardInfo[card];
+				let filterMe = state.hgroup.inference[playerIndex].cards[card].possible;
+				if (filterMe.length === 1) continue;
+				filterMe = filterMe.filter((x) => perPlayerCounts[x] > 0);
+				if (cardInfo.cluedColor !== undefined) {
+					filterMe = filterMe.filter((x) => x[0] === cardInfo.cluedColor);
+				}
+				if (cardInfo.cluedNumber !== undefined) {
+					filterMe = filterMe.filter(
+						(x) => parseInt(x[1]) === cardInfo.cluedNumber,
+					);
+				}
+				// No bad touch filter
+				if (
+					cardInfo.cluedNumber !== undefined ||
+					cardInfo.cluedColor !== undefined
+				) {
+					filterMe = filterMe.filter((name) => {
+						const next = state.piles[name[0]].length + 1;
+						return parseInt(name[1]) >= next;
+					});
+				}
+				state.hgroup.inference[playerIndex].cards[card].possible = filterMe;
+			}
+		}
+
 		if (action.payload.index !== undefined) {
-			// TODO: Maybe infer things from play or discard actions?
+			// TODO: Infer more things from play or discard actions (like bluffs)
 			return;
 		}
+		const player = action.payload.player;
 		for (let card of state.hand[player].cards) {
 			const cardInfo = state.cardToCardInfo[card];
 			if (
 				cardInfo.cluedColor !== undefined &&
 				cardInfo.cluedNumber !== undefined
 			) {
-				state.hgroup.inference[player].cards[card].possible = [
-					`${cardInfo.cluedColor}${cardInfo.cluedNumber}`,
-				];
+				const name = `${cardInfo.cluedColor}${cardInfo.cluedNumber}`;
+				const card = state.hgroup.inference[player].cards[card];
+				if (card.possible.length !== 1) {
+					console.error(
+						"unexpected number of cards in possible",
+						card.possible,
+					);
+				} else if (card.possible[0] !== name) {
+					console.error(
+						`unexpected card ${card.possible[0]} instead of ${name}`,
+					);
+				}
+				card.possible = [name];
 			}
 		}
 
@@ -287,28 +363,8 @@ export const hgroup = createReducer(initialState, (r) => {
 			state.hgroup.inference[player].cards[focused].save = false;
 		}
 		// TODO: Check for deferred plays.
+		let possible: string[] = [];
 		state.hgroup.inference[player].cards[focused].play = "now";
-		let possible = [];
-		// TODO: Remove cards that all of them can be seen elsewhere.
-		let counts: { [k: string]: number } = {};
-		for (let card of Object.values(state.cardToCardInfo).map(
-			(cardInfo) => cardInfo.name,
-		)) {
-			counts[card] = (counts[card] || 0) + 1;
-		}
-		for (let i = 0; i < state.players.length; i++) {
-			const hand = getHandForPlayer(state, i);
-			for (let card of hand) {
-				if (i === player) {
-					const inferred = state.hgroup.inference[player].cards[card.id];
-					if (inferred.possible.length == 1) {
-						counts[inferred.possible[0]]--;
-					}
-				} else {
-					counts[card.name]--;
-				}
-			}
-		}
 		if (
 			cardInfo.cluedColor !== undefined &&
 			cardInfo.cluedNumber !== undefined
@@ -324,7 +380,7 @@ export const hgroup = createReducer(initialState, (r) => {
 						continue;
 					if (i === player) {
 						const inferred = state.hgroup.inference[player].cards[card.id];
-						if (inferred.possible.length == 1) {
+						if (inferred.possible.length == 1 && card.id !== focused) {
 							cluedCardsOfColor.push(inferred.possible[0]);
 						}
 					} else if (card.name[0] === cardInfo.cluedColor) {
@@ -358,9 +414,13 @@ export const hgroup = createReducer(initialState, (r) => {
 				}
 			}
 		}
-		state.hgroup.inference[player].cards[focused].possible = possible.filter(
-			(card) => counts[card] > 0,
-		);
+		possible = possible.filter((card) => counts[card] > 0);
+		if (possible.length) {
+			const filterMe = state.hgroup.inference[player].cards[focused].possible;
+			state.hgroup.inference[player].cards[focused].possible = filterMe.filter(
+				(x) => possible.indexOf(x) !== -1,
+			);
+		}
 	}
 	r.addCase(start_action, (state, action) => {
 		state.hgroup.chop = state.hand.map((hand) => hand.cards.length - 1);
@@ -374,10 +434,12 @@ export const hgroup = createReducer(initialState, (r) => {
 		state.hgroup.priorCardToCardInfo = state.cardToCardInfo;
 	});
 	r.addCase(play_action, (state, action) => {
+		infer(state, action);
 		chop(state, action);
 		state.hgroup.priorCardToCardInfo = state.cardToCardInfo;
 	});
 	r.addCase(discard_action, (state, action) => {
+		infer(state, action);
 		chop(state, action);
 		state.hgroup.priorCardToCardInfo = state.cardToCardInfo;
 	});
@@ -396,17 +458,23 @@ export const fireworks = createReducer(initialState, (r) => {
 		state.state = "playing";
 		state.deck = action.payload.deck;
 		let inferences: PlayerInference = { cards: {} };
+		let allPossible = new Set();
 		for (let card of state.deck) {
+			const name = card.substring(0, 2);
+			allPossible.add(name);
 			state.cardToCardInfo[card] = {
 				id: card,
-				name: card.substring(0, 2),
+				name,
 				cluedColor: undefined,
 				cluedNumber: undefined,
 			};
+		}
+
+		for (let card of state.deck) {
 			inferences.cards[card] = {
 				play: undefined,
 				save: undefined,
-				possible: [],
+				possible: [...allPossible] as string[],
 			};
 		}
 		state.players = action.payload.players;
@@ -424,7 +492,11 @@ export const fireworks = createReducer(initialState, (r) => {
 		hgroup(state, action);
 	});
 	r.addCase(discard_action, (state, action) => {
-		if (state.turn === action.payload.player && state.clues < 8) {
+		if (
+			state.state === "playing" &&
+			state.turn === action.payload.player &&
+			state.clues < 8
+		) {
 			state.clues++;
 			let discarded = state.hand[action.payload.player].cards.splice(
 				action.payload.index,
@@ -436,7 +508,7 @@ export const fireworks = createReducer(initialState, (r) => {
 		}
 	});
 	r.addCase(play_action, (state, action) => {
-		if (state.turn === action.payload.player) {
+		if (state.state === "playing" && state.turn === action.payload.player) {
 			let played = state.hand[action.payload.player].cards.splice(
 				action.payload.index,
 				1,
@@ -457,7 +529,11 @@ export const fireworks = createReducer(initialState, (r) => {
 		}
 	});
 	r.addCase(clue_color_action, (state, action) => {
-		if (state.turn === action.payload.cluegiver && state.clues > 0) {
+		if (
+			state.state === "playing" &&
+			state.turn === action.payload.cluegiver &&
+			state.clues > 0
+		) {
 			state.clues--;
 			let hand = state.hand[action.payload.player];
 			for (let i of cluedCards(state, action)) {
@@ -467,7 +543,11 @@ export const fireworks = createReducer(initialState, (r) => {
 		}
 	});
 	r.addCase(clue_number_action, (state, action) => {
-		if (state.turn === action.payload.cluegiver && state.clues > 0) {
+		if (
+			state.state === "playing" &&
+			state.turn === action.payload.cluegiver &&
+			state.clues > 0
+		) {
 			state.clues--;
 			let hand = state.hand[action.payload.player];
 			for (let i of cluedCards(state, action)) {
