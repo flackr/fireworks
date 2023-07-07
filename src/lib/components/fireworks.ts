@@ -383,15 +383,37 @@ export const hgroup = createReducer(initialState, (r) => {
 		} else {
 			state.hgroup.inference[player].cards[focused].save = false;
 		}
+		let inPlayCounts: { [k: string]: number } = {};
+		for (let card of allCardNames(state)) {
+			inPlayCounts[card] = (inPlayCounts[card] || 0) + 1;
+		}
+		for (let color in state.piles) {
+			for (let cardId of state.piles[color]) {
+				inPlayCounts[state.cardToCardInfo[cardId].name]--;
+			}
+		}
+		for (let cardId of state.discard) {
+			inPlayCounts[state.cardToCardInfo[cardId].name]--;
+		}
+
 		// TODO: Check for deferred plays.
 		let possible: string[] = [];
 		state.hgroup.inference[player].cards[focused].play = "now";
+		const save = state.hgroup.inference[player].cards[focused].save;
 		if (
 			cardInfo.cluedColor !== undefined &&
 			cardInfo.cluedNumber !== undefined
 		) {
 			possible.push(`${cardInfo.cluedColor}${cardInfo.cluedNumber}`);
 		} else if (cardInfo.cluedColor !== undefined) {
+			if (save) {
+				for (let value = state.piles[cardInfo.cluedColor].length; value <= 5; ++value) {
+					const name = `${cardInfo.cluedColor}${value}`;
+					if (inPlayCounts[name] === 1) {
+						possible.push(name);
+					}
+				}
+			}
 			let inferenceCount = 0;
 			let cluedCardsOfColor = [];
 			for (let i = 0; i < state.players.length; i++) {
@@ -429,6 +451,14 @@ export const hgroup = createReducer(initialState, (r) => {
 				state.hgroup.inference[player].cards[focused].play = "later";
 			}
 		} else if (cardInfo.cluedNumber !== undefined) {
+			if (save) {
+				for (let color in state.piles) {
+					const name = `${color}${cardInfo.cluedNumber}`;
+					if ((cardInfo.cluedNumber === 2 || inPlayCounts[name] === 1) && state.piles[color].length < cardInfo.cluedNumber) {
+						possible.push(name);
+					}
+				}
+			}
 			for (let color in state.piles) {
 				if (state.piles[color].length + 1 === cardInfo.cluedNumber) {
 					possible.push(`${color}${cardInfo.cluedNumber}`);
