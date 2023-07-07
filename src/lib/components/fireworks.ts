@@ -229,8 +229,10 @@ export const hgroup = createReducer(initialState, (r) => {
 			const cardInfo = state.cardToCardInfo[card];
 			const priorCardInfo = state.hgroup.priorCardToCardInfo[card];
 			if (
-				cardInfo.cluedColor !== priorCardInfo.cluedColor ||
-				cardInfo.cluedNumber !== priorCardInfo.cluedNumber
+				priorCardInfo.cluedColor === undefined &&
+				priorCardInfo.cluedNumber === undefined &&
+				(cardInfo.cluedColor !== undefined ||
+					cardInfo.cluedNumber !== undefined)
 			) {
 				newCluedCards.push(i);
 			}
@@ -310,6 +312,7 @@ export const hgroup = createReducer(initialState, (r) => {
 					cardInfo.cluedColor !== undefined
 				) {
 					filterMe = filterMe.filter((name) => {
+						// Work out what playable cards have been cued up and exclude them.
 						const next = state.piles[name[0]].length + 1;
 						return parseInt(name[1]) >= next;
 					});
@@ -326,22 +329,40 @@ export const hgroup = createReducer(initialState, (r) => {
 		for (let card of state.hand[player].cards) {
 			const cardInfo = state.cardToCardInfo[card];
 			if (
+				action.payload.color !== undefined &&
+				cardInfo.cluedColor === undefined
+			) {
+				state.hgroup.inference[player].cards[card].possible =
+					state.hgroup.inference[player].cards[card].possible.filter(
+						(name) => name[0] !== action.payload.color,
+					);
+			}
+			if (
+				action.payload.value !== undefined &&
+				cardInfo.cluedNumber === undefined
+			) {
+				state.hgroup.inference[player].cards[card].possible =
+					state.hgroup.inference[player].cards[card].possible.filter(
+						(name) => parseInt(name[1]) !== action.payload.value,
+					);
+			}
+			if (
 				cardInfo.cluedColor !== undefined &&
 				cardInfo.cluedNumber !== undefined
 			) {
 				const name = `${cardInfo.cluedColor}${cardInfo.cluedNumber}`;
-				const card = state.hgroup.inference[player].cards[card];
-				if (card.possible.length !== 1) {
+				const cardInference = state.hgroup.inference[player].cards[card];
+				if (cardInference.possible.length !== 1) {
 					console.error(
 						"unexpected number of cards in possible",
-						card.possible,
+						cardInference.possible,
 					);
-				} else if (card.possible[0] !== name) {
+				} else if (cardInference.possible[0] !== name) {
 					console.error(
-						`unexpected card ${card.possible[0]} instead of ${name}`,
+						`unexpected card ${cardInference.possible[0]} instead of ${name}`,
 					);
 				}
-				card.possible = [name];
+				cardInference.possible = [name];
 			}
 		}
 
