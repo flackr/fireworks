@@ -10,7 +10,104 @@ import {
 	makeFullDeck,
 	play_action,
 	start_action,
+	type FireworksState,
+	type Player,
 } from "$lib/components/fireworks";
+
+// Sets up a known state with the top card on each pile as passed in, and each hand with
+// the given cards in hand, the given deck remaining and starting on the given turn.
+function setupState(
+	piles: string[],
+	hands: string[][],
+	deck: string[],
+	turn: number,
+): FireworksState {
+	hands = JSON.parse(JSON.stringify(hands));
+	const handLength = hands[0].length;
+	let state = { ...initialState };
+	let players: Player[] = [];
+	for (let i = 0; i < hands.length; i++) {
+		const player = {
+			userid: `user${i}`,
+			name: `user${i}`,
+		};
+		players.push(player);
+		state = fireworks(state, join_action(player));
+	}
+	let playCards: string[] = [];
+	let index = 0;
+	for (let i = 0; i < piles.length; ++i) {
+		for (let value = 1; value <= parseInt(piles[i][1]); ++value) {
+			playCards.push(`${piles[i][0]}${value}-generated-${++index}`);
+		}
+	}
+	const plays = playCards.length;
+	let used = new Set();
+	function makeUnique(name: string) {
+		if (!used.has(name)) {
+			used.add(name);
+			return name;
+		}
+		return `${name}-generated-${++index}`;
+	}
+	let initialDeck: string[] = [];
+	let initialHands: string[][] = hands.map((x) => []);
+	let initialTurn = ((turn - playCards.length) % hands.length) + hands.length;
+	let t = initialTurn;
+	// Set up the play cards to be available to be played first.
+	while (playCards.length > 0) {
+		let next = playCards.splice(0, 1)[0];
+		if (initialHands[t].length < handLength) {
+			initialHands[t].splice(0, 0, next);
+		} else {
+			initialDeck.push(next);
+		}
+		t = (t + 1) % hands.length;
+	}
+	// Then ensure each player has the expected hands.
+	while (true) {
+		if (hands[t].length == 0) {
+			break;
+		}
+		let next = makeUnique(hands[t].splice(-1, 1)[0]);
+		if (initialHands[t].length < handLength) {
+			initialHands[t].splice(0, 0, next);
+		} else {
+			initialDeck.push(next);
+		}
+		t = (t + 1) % hands.length;
+	}
+	// Maybe check that all hands are empty now?
+	for (let card of deck) {
+		initialDeck.push(makeUnique(card));
+	}
+
+	// Add player hands to start of deck
+	for (let i = initialHands.length - 1; i >= 0; --i) {
+		initialDeck = initialHands[i].concat(initialDeck);
+	}
+	state = fireworks(
+		state,
+		start_action({
+			deck: initialDeck,
+			players,
+		}),
+	);
+	// Manipulate initial turn to achieve desired end turn.
+	state = { ...state, turn: initialTurn };
+	t = initialTurn;
+	for (let i = 0; i < plays; ++i) {
+		state = fireworks(
+			state,
+			play_action({
+				player: t,
+				index: handLength - 1,
+			}),
+		);
+		t = (t + 1) % hands.length;
+	}
+	return state;
+}
 
 describe("fireworks", () => {
 	const p0 = {
@@ -257,5 +354,25 @@ describe("fireworks", () => {
 		expect(inference.save).to.equal(false);
 		expect(inference.possible.length).to.equal(1);
 		expect(inference.possible[0]).to.equal("G2");
+	});
+	it("Can construct an arbitrary state", () => {
+		const piles = ["R5", "G2", "B1", "Y2"];
+		const hands = [
+			["R4", "Y2", "Y5", "R3", "B3"],
+			["R4", "Y2", "Y5", "R3", "B3"],
+			["R4", "Y2", "Y5", "R3", "B3"],
+		];
+		const turn = 0;
+		const deck = ["W5", "Y1"];
+		let state = setupState(piles, hands, deck, turn);
+		for (let pile of piles) {
+			const topCard = state.piles[pile[0]][state.piles[pile[0]].length - 1];
+			expect(topCard.substring(0, 2)).to.equal(pile);
+		}
+		for (let i = 0; i < hands.length; ++i) {
+			const hand = getHandForPlayer(state, i).map((info) => info.name);
+			expect(JSON.stringify(hands[i])).to.equal(JSON.stringify(hand));
+		}
+		expect(state.turn).to.equal(turn);
 	});
 });
