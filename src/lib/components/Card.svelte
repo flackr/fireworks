@@ -26,10 +26,9 @@
 <style>
     .card {
         display: inline-block;
-        width: 71px;
-        height: 100px;
         position: relative;
         margin: 2px;
+        width: 71px;
         border-bottom: 5px solid transparent;
     }
     .chop {
@@ -41,8 +40,8 @@
 
     .transform {
         transform: rotateY(180deg);
-        width: 100%;
-        height: 100%;
+        width: 71px;
+        height: 100px;
         position: relative;
         transform-style: preserve-3d;
         border: 1px solid grey;
