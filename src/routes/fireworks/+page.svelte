@@ -12,6 +12,8 @@
     getHandForPlayer,
     type Player,
     type CardId,
+    evaluateClues,
+    evaluateState,
   } from "$lib/components/fireworks";
   import { store } from "$lib/store";
   import { onDestroy, onMount } from "svelte";
@@ -60,9 +62,12 @@
   function displayName(index: number) {
     return displayState?.players[index].name;
   }
-  function describeAction(index: number) {
+  function describeIthAction(index: number) {
     const action: AnyAction = gamelog[index];
     const state: FireworksState = gamestates[index + 1] || gamestates[0];
+    return describeAction(state, action);
+  }
+  function describeAction(state: FireworksState, action: AnyAction) {
     const payload = action.payload;
     if (action.type === "join_action") {
       return `${payload.name} joined the game.`;
@@ -216,8 +221,20 @@
         topCards.push(pile[pile.length - 1]);
       }
     }
-    console.log(topCards);
     return topCards;
+  }
+
+  $: aiAction = evaluateState(displayState, displayState?.players.length, displayState?.turn)
+  function playAIAction() {
+    if (aiAction.action !== undefined) {
+      dispatch(aiAction.action);
+    }
+  }
+  function describeAIAction() {
+    if (aiAction.action === undefined) {
+      return `AI is confused`;
+    }
+    return describeAction(displayState, aiAction.action) + ` (${aiAction.score})`;
   }
 </script>
 
@@ -232,7 +249,7 @@
     <span class="column">
       {#each gamelog as action, i (action)}
         <span class="row underlined" on:click={showState(i)}
-          >{describeAction(i)}</span
+          >{describeIthAction(i)} ({gamestates[i].hgroup.score})</span
         >
       {/each}
     </span>
@@ -275,7 +292,6 @@
             {/if}</span
           >
         {/each}
-
         {#if pi !== playerIndex && myTurn(displayState) && displayState?.clues > 0}
           {#each validColors(displayState?.variant) as color}
             <button on:click={clueColor(playerIndex, pi, color)}
@@ -303,6 +319,9 @@
         <Card card={cardId} faceup={false} />
       </span>
     {/each}
+  </div>
+  <div>
+    AI recommends: <button on:click={playAIAction}>{describeAIAction(displayState)}</button>
   </div>
   <div>
     <p>State: {displayState?.state}</p>
@@ -369,8 +388,11 @@
     display: block;
     width: 25%;
     border: 1px solid #aeaeae;
-    margin: 1em;
-    float: right;
+    position: fixed;
+    top: 1em;
+    bottom: 1em;
+    right: 1em;
+    overflow: auto;
   }
   .gamelog > span > span {
     padding: 1em;

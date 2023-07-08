@@ -51,7 +51,10 @@ export interface PlayerInference {
 	// see the other 5's in Alice's hand, but Alice doesn't know that
 	// Bob knows this because she can't see her 5.
 	cards: { [key: CardId]: CardInference };
+	score: number;
 }
+
+export type PlayAction = ReturnType<typeof play_action> | ReturnType<typeof discard_action> | ReturnType<typeof clue_number_action> | ReturnType<typeof clue_color_action>;
 
 // Inferred states based on hgroup convention:
 // https://hanabi.github.io/docs/beginner
@@ -60,6 +63,8 @@ export interface HGroupState {
 	chop: Slot[];
 	focus: (CardId | undefined)[];
 	inference: PlayerInference[];
+	score: number;
+	lastAction: PlayAction | undefined;
 }
 export interface FireworksState {
 	players: Player[];
@@ -98,6 +103,7 @@ export const clue_color_action = createAction<{
 	color: string;
 }>("clue_color_action");
 
+
 export const initialState = {
 	players: [],
 	variant: "standard",
@@ -115,6 +121,8 @@ export const initialState = {
 		chop: [],
 		focus: [],
 		inference: [],
+		score: 0,
+		lastAction: undefined
 	},
 	cardToCardInfo: {},
 } as FireworksState;
@@ -149,6 +157,82 @@ export function makeStartAction(players: Player[], variant: Variant) {
 	deck = shuffle(deck);
 	let order = shuffle(players);
 	return start_action({ deck, players: order });
+}
+export interface RankedAction {
+	action: PlayAction;
+	score: number;
+}
+export function evaluateClues(state: FireworksState, evaluator: number): RankedAction[] {
+	let actions: RankedAction[] = [];
+	for (let player = 0; player < state.players.length; player++) {
+		if (player === state.turn) continue;
+		for (let color of validColors(state.variant)) {
+			let action = clue_color_action({
+				cluegiver: state.turn,
+				player,
+				color
+			});
+			actions.push({action, score: fireworks(state, action).hgroup.score});
+		}
+		for (let number of [1, 2, 3, 4, 5]) {
+			let action = clue_number_action({
+				cluegiver: state.turn,
+				player,
+				value: number
+			});
+			actions.push({action, score: fireworks(state, action).hgroup.inference[evaluator].score});
+		}
+	}
+	actions.sort((a, b) => b.score - a.score);
+  return actions;
+}
+
+export function getActions(state: FireworksState, evaluator: number): PlayAction[] {
+	let actions: PlayAction[] = evaluateClues(state, evaluator).slice(0, 3).map(ranked => ranked.action);
+	if (state.clues === 0)
+		actions = [];
+	// Consider known plays
+	const cards = state.hand[state.turn].cards;
+	for (let i = 0; i < cards.length; ++i) {
+		// Should this use possible inference?
+		const inference = state.hgroup.inference[state.turn].cards[cards[i]];
+		if (inference.play === "now" && inference.possible.length === 1) {
+			actions.push(play_action({
+				player: state.turn, index: i
+			}));
+		}
+	}
+	// Consider discard(s).
+	const chop = state.hgroup.chop[state.turn]
+	if (cards.length > 0 && chop !== undefined) {
+		actions.push(discard_action({
+			player: state.turn, index: chop
+		}));
+	}
+	return actions;
+}
+
+export function evaluateState(state: FireworksState, depth: number, evaluator: number): {score: number, action: PlayAction | undefined} {
+	if (state.state === "notstarted") {
+		return {score: -Infinity, action: undefined}
+	}
+	if (state.state !== "playing" || depth === 0) {
+		return {score: state.hgroup.inference[evaluator].score, action: undefined};
+	}
+	let actions = getActions(state, evaluator);
+	let bestScore = -Infinity;
+	let bestAction = undefined;
+	for (let action of actions) {
+		const nextState = fireworks(state, action);
+		if (nextState.turn === state.turn)
+			continue;
+		const score = evaluateState(nextState, depth - 1, evaluator).score;
+		if (score > bestScore) {
+			bestScore = score;
+			bestAction = action;
+		}
+	}
+	return {score: bestScore, action: bestAction};
 }
 
 function draw(state: WritableDraft<FireworksState>, player: number) {
@@ -507,6 +591,49 @@ export const hgroup = createReducer(initialState, (r) => {
 		chop(state, action);
 		state.hgroup.priorCardToCardInfo = state.cardToCardInfo;
 	});
+	r.addMatcher(() => true, (state, action) => {
+		const PLAYED_CARD_WEIGHT = 1000;
+		const CLUED_CARD_WEIGHT = 500;
+		const BAD_TOUCH_WEIGHT = -1000;
+		const FAULT_WEIGHT = -5000;
+		// Plays so far
+		let score = state.faults * FAULT_WEIGHT;
+
+		for (let color in state.piles) {
+			score += state.piles[color].length * PLAYED_CARD_WEIGHT;
+		}
+		state.hgroup.score = score;
+
+		// Calculate score from perspective of each player.
+		for (let i = 0 ; i < state.players.length; ++i) {
+			score = state.hgroup.score;
+			let plays = new Set();
+			for (let h = 0; h < state.hand.length; ++h) {
+				if (h === i) {
+					// TODO: Evaluate own clued plays according to what we think.
+					continue;
+				}
+
+				// Evaluate clued cards in other people's hands.
+				for (let card of state.hand[h].cards) {
+					const info = state.cardToCardInfo[card];
+					if (info.cluedColor !== undefined || info.cluedNumber !== undefined) {
+						if (plays.has(info.name) || state.piles[info.name[0]].length >=parseInt(info.name[1])) {
+							// Duplicate clues or already played cards are bad touches.
+							score += BAD_TOUCH_WEIGHT;
+						} else {
+							// Everything else can be played.
+							score += CLUED_CARD_WEIGHT;
+							plays.add(info.name);
+						}
+					}
+				}
+			}
+			state.hgroup.inference[i].score = score;
+		}
+		// TODO: Filter actions so we don't apply incorrect cast (e.g. from start_action)?
+		state.hgroup.lastAction = action as PlayAction;
+	});
 });
 export const fireworks = createReducer(initialState, (r) => {
 	r.addCase(join_action, (state, action) => {
@@ -515,7 +642,7 @@ export const fireworks = createReducer(initialState, (r) => {
 	r.addCase(start_action, (state, action) => {
 		state.state = "playing";
 		state.deck = action.payload.deck;
-		let inferences: PlayerInference = { cards: {} };
+		let inferences: PlayerInference = { cards: {}, score: 0 };
 		let allPossible = new Set();
 		for (let card of state.deck) {
 			const name = card.substring(0, 2);
